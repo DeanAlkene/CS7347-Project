@@ -1,0 +1,21 @@
+accelerator launch train.py \
+  --model_type concat \
+  --backbone roberta \
+  --embedding_method cls_with_pooler \
+  --train_data_path ../data/train_full.tsv \
+  --max_length 512 \
+  --pad_to_max_length \
+  --per_device_train_batch_size 32 \
+  --learning_rate 3e-5 \
+  --weight_decay 0.1 \
+  --llrd_factor 1.0 \
+  --num_train_epochs 3 \
+  --gradient_accumulation_steps 1 \
+  --lr_scheduler_type linear \
+  --num_warmup_ratio 0.06 \
+  --classifier_dropout_rate 0.1 \
+  --reinit_layers 0 \
+  --lr_scale_factor 1.0 \
+  --seed -1 \
+  --output_dir ../model \
+  --log_dir ../log
