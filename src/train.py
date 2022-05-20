@@ -271,18 +271,29 @@ def train():
     for epoch in range(args.num_train_epochs):
         model.train()
         total_loss = 0
+        batch_loss = 0
+        batch_cnt = 0
         for step, batch in enumerate(train_dataloader):
             outputs = model(batch)
             loss = outputs.loss
             total_loss += loss.detach().float()
+            batch_loss += loss.detach().float()
+            batch_cnt += 1
             loss = loss / args.gradient_accumulation_steps
             accelerator.backward(loss)
+            if args.backbone == "bert":
+                accelerator.clip_grad_norm_(model.parameters(), 1.0)
 
             if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
                 progress_bar.update(1)
+            
+            if step % 1000 == 0 or step == len(train_dataloader) - 1:
+                logger.info(f"Epoch {epoch} / Step {step}: loss = {batch_loss / batch_cnt}")
+                batch_loss = 0
+                batch_cnt = 0
         
         if use_dev:
             model.eval()
@@ -296,7 +307,8 @@ def train():
                     )
                 eval_metric = metric.compute()
                 logger.info(f"Epoch {epoch}: {eval_metric}")
-                logger.info(f"Epoch {epoch}: loss = {total_loss}")
+                logger.info(f"Epoch {epoch}: total_loss = {total_loss}")
+                logger.info(f"Epoch {epoch}: loss = {total_loss / len(train_dataloader)}")
                 if eval_metric['accuracy'] > acc:
                     acc = eval_metric['accuracy']
                     if args.output_dir is not None:
@@ -314,7 +326,8 @@ def train():
                         logger.info(f"Model save to {output_path}")
         else:
             logger.info(f"Epoch {epoch} Done")
-            logger.info(f"Epoch {epoch}: loss = {total_loss}")
+            logger.info(f"Epoch {epoch}: total_loss = {total_loss}")
+            logger.info(f"Epoch {epoch}: loss = {total_loss / len(train_dataloader)}")
             # if epoch == args.num_train_epochs - 1:
             if args.output_dir is not None:
                 accelerator.wait_for_everyone()

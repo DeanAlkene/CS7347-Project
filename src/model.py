@@ -2,7 +2,7 @@ from turtle import forward
 from boto import config
 import torch
 from torch import embedding, nn
-from transformers import BertConfig, BertModel, BertForSequenceClassification, AutoModelForSequenceClassification, RobertaConfig, RobertaModel, RobertaForSequenceClassification
+from transformers import BertConfig, BertModel, BertForSequenceClassification, RobertaConfig, RobertaModel, RobertaForSequenceClassification, ElectraConfig, ElectraModel, ElectraForSequenceClassification
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 def get_pooled_embedding(feature, attention_mask, method):
@@ -41,6 +41,13 @@ class XQBert(nn.Module):
                 classifier_dropout=dropout
             )
             self.backbone = RobertaForSequenceClassification.from_pretrained("roberta-base", config=self.config)
+        elif backbone == "electra":
+            self.config = ElectraConfig.from_pretrained(
+                "google/electra-base-discriminator",
+                num_labels=num_labels,
+                classifier_dropout=dropout
+            )
+            self.backbone = ElectraForSequenceClassification.from_pretrained("google/electra-base-discriminator", config=self.config)
         else:
             raise ValueError("Unsupported backbone model {}".format(backbone))
 
@@ -66,7 +73,6 @@ class XQBert(nn.Module):
                 self.backbone.bert.pooler.dense.bias.data.zero_()
                 for param in self.backbone.bert.pooler.parameters():
                     param.requires_grad = True
-
             for n in range(self.reinit_layers):
                 self.backbone.bert.encoder.layer[-(n+1)].apply(self._init_weight_and_bias)
         elif backbone == "roberta":
@@ -75,9 +81,16 @@ class XQBert(nn.Module):
                 self.backbone.roberta.pooler.dense.bias.data.zero_()
                 for param in self.backbone.roberta.pooler.parameters():
                     param.requires_grad = True
-
             for n in range(self.reinit_layers):
                 self.backbone.roberta.encoder.layer[-(n+1)].apply(self._init_weight_and_bias)
+        elif backbone == "electra":
+            if self.backbone.electra.pooler is not None:
+                self.backbone.electra.pooler.dense.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+                self.backbone.electra.pooler.dense.bias.data.zero_()
+                for param in self.backbone.electra.pooler.parameters():
+                    param.requires_grad = True
+            for n in range(self.reinit_layers):
+                self.backbone.electra.encoder.layer[-(n+1)].apply(self._init_weight_and_bias)
         else:
             raise ValueError("Unsupported backbone model {}".format(backbone))
     
@@ -118,17 +131,21 @@ class XQSBert(nn.Module):
                 output_hidden_states=True
             )
             self.backbone = BertModel.from_pretrained("bert-base-uncased", config=self.config)
-            self.classifier = nn.Linear(3 * self.config.hidden_size, num_labels)
         elif backbone == "roberta":
             self.config = RobertaConfig.from_pretrained(
                 "roberta-base",
                 output_hidden_states=True
             )
-            self.backbone = RobertaModel.from_pretrained("roberta-base", config=self.config)
-            self.classifier = nn.Linear(3 * self.config.hidden_size, num_labels)
+            self.backbone = RobertaModel.from_pretrained("roberta-base", config=self.config)          
+        elif backbone == "electra":
+            self.config = ElectraConfig(
+                output_hidden_states=True
+            )
+            self.backbone = ElectraModel.from_pretrained("google/electra-base-discriminator", config=self.config)
         else:
             raise ValueError("Unsupported backbone model {}".format(backbone))
 
+        self.classifier = nn.Linear(3 * self.config.hidden_size, num_labels)
         self.num_labels = num_labels
         self.embedding_method = embedding_method
         if dropout is None:

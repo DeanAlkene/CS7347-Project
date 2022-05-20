@@ -10,12 +10,14 @@ def get_tokenizer_by_model(backbone):
         tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
     elif backbone == "roberta":
         tokenizer = AutoTokenizer.from_pretrained("roberta-base")
+    elif backbone == "electra":
+        tokenizer = AutoTokenizer.from_pretrained("google/electra-base-discriminator")
     else:
         raise ValueError("Unsupported backbone model {}".format(backbone))
     return tokenizer
 
 def get_concat_data_column_name_by_model(backbone):
-    if backbone == "bert":
+    if backbone == "bert" or backbone == "electra":
         col_name = ['input_ids', 'token_type_ids', 'attention_mask', 'labels']
     elif backbone == "roberta":
         col_name = ['input_ids', 'attention_mask', 'labels']
@@ -24,7 +26,7 @@ def get_concat_data_column_name_by_model(backbone):
     return col_name
 
 def get_paired_data_column_name_by_model(backbone):
-    if backbone == "bert":
+    if backbone == "bert" or backbone == "electra":
         col_name = ['input_ids_a', 'token_type_ids_a', 'attention_mask_a', 'input_ids_b', 'token_type_ids_b', 'attention_mask_b', 'labels']
     elif backbone == "roberta":
         col_name = ['input_ids_a', 'attention_mask_a', 'input_ids_b', 'attention_mask_b', 'labels']
