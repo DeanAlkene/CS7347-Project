@@ -1,5 +1,4 @@
 import functools
-from sqlalchemy import column
 import torch
 import pandas as pd
 from datasets import load_dataset, Dataset

@@ -4,7 +4,7 @@ import pandas as pd
 
 import torch
 
-from model import XQBert, XQSBert
+from model import Model, SModel
 from dataset import load_concat_test_data, load_paired_test_data
 
 def parse_args():
@@ -53,9 +53,9 @@ def test():
         raise ValueError('Unknown model type {}'.format(args.model_type))
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     if args.model_type == 'concat':
-        model = XQBert(args.backbone, num_labels=2, dropout=0.0, embedding_method=args.embedding_method).to(device)
+        model = Model(args.backbone, num_labels=2, dropout=0.0, embedding_method=args.embedding_method).to(device)
     else:
-        model = XQSBert(args.backbone, num_labels=2, dropout=0.0, embedding_method=args.embedding_method).to(device)
+        model = SModel(args.backbone, num_labels=2, dropout=0.0, embedding_method=args.embedding_method).to(device)
     checkpoint = torch.load(args.model_path)
     model.load_state_dict(checkpoint['model_state_dict'])
 

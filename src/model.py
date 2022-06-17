@@ -1,5 +1,3 @@
-from turtle import forward
-from boto import config
 import torch
 from torch import embedding, nn
 from transformers import BertConfig, BertModel, BertForSequenceClassification, RobertaConfig, RobertaModel, RobertaForSequenceClassification, ElectraConfig, ElectraModel, ElectraForSequenceClassification
@@ -25,9 +23,9 @@ def get_pooled_embedding(feature, attention_mask, method):
     else:
         return torch.sum(feature * attention_mask.unsqueeze(2), dim=1) / torch.sum(attention_mask, dim=1, keepdim=True)
 
-class XQBert(nn.Module):
+class Model(nn.Module):
     def __init__(self, backbone="bert", num_labels=2, dropout=None, embedding_method='cls_with_pooler', reinit_layers=0):
-        super(XQBert, self).__init__()
+        super(Model, self).__init__()
         if backbone == "bert":
             self.config = BertConfig(
                 num_labels=num_labels,
@@ -123,9 +121,9 @@ class XQBert(nn.Module):
         #     attentions=None
         # )
 
-class XQSBert(nn.Module):
+class SModel(nn.Module):
     def __init__(self, backbone="bert", num_labels=2, dropout=None, embedding_method='cls_with_pooler'):
-        super(XQSBert, self).__init__()
+        super(SModel, self).__init__()
         if backbone == "bert":
             self.config = BertConfig(
                 output_hidden_states=True

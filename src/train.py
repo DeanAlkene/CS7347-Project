@@ -16,7 +16,7 @@ import transformers
 from transformers import get_scheduler, SchedulerType, set_seed
 from datasets import load_metric
 from accelerate import Accelerator, DistributedDataParallelKwargs
-from model import XQBert, XQSBert
+from model import Model, Model
 from dataset import load_concat_train_data, load_concat_dev_data, load_paired_train_data, load_paired_dev_data
 
 logger = logging.getLogger(__name__)
@@ -79,6 +79,7 @@ def parse_args():
     parser.add_argument("--num_warmup_ratio", type=float, default=0.0)
     parser.add_argument("--classifier_dropout_rate", type=float, default=None)
     parser.add_argument("--reinit_layers", type=int, default=0)
+    parser.add_argument("--noise_lambda", type=float, default=0.0)
     parser.add_argument("--lr_scale_factor", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--output_dir", type=str, default=None)
@@ -92,7 +93,7 @@ def get_opt_grouped_params_llrd(model, top_lr, weight_decay, lr_decay, classifie
         
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
     init_lr = top_lr
-    head_lr = top_lr + 1e-6
+    head_lr = top_lr# + 1e-6
     classifier_lr = top_lr * classifier_scale_factor
     lr = init_lr
     
@@ -209,10 +210,12 @@ def train():
             raise ValueError('Unknown model type {}'.format(args.model_type))
     
     if args.model_type == 'concat':
-        model = XQBert(backbone=args.backbone, num_labels=2, dropout=args.classifier_dropout_rate, embedding_method=args.embedding_method, reinit_layers=args.reinit_layers)
+        model = Model(backbone=args.backbone, num_labels=2, dropout=args.classifier_dropout_rate, embedding_method=args.embedding_method, reinit_layers=args.reinit_layers)
     else:
-        model = XQSBert(backbone=args.backbone, num_labels=2, dropout=args.classifier_dropout_rate, embedding_method=args.embedding_method)
+        model = Model(backbone=args.backbone, num_labels=2, dropout=args.classifier_dropout_rate, embedding_method=args.embedding_method)
 
+    for name, para in model.named_parameters():
+        model.state_dict()[name][:] += (torch.rand(para.size()) - 0.5) * args.noise_lambda * torch.std(para) 
     optimizer_grouped_parameters = get_opt_grouped_params_llrd(model, args.learning_rate, args.weight_decay, args.llrd_factor, args.lr_scale_factor)
     optimizer = AdamW(optimizer_grouped_parameters)
     # if args.backbone == 'bert':
@@ -263,6 +266,7 @@ def train():
     logger.info(f"  Use dev dataset = {use_dev}")
     logger.info(f"  Classifier Dropout Rate = {args.classifier_dropout_rate}")
     logger.info(f"  Learning Rate Scale Factor (classifier : backbone) = {args.lr_scale_factor}")
+    logger.info(f"  Noise Lambda = {args.noise_lambda}")
     logger.info(f"  Seed = {args.seed}")
     logger.info("***** Start Training *****")
 
@@ -281,8 +285,6 @@ def train():
             batch_cnt += 1
             loss = loss / args.gradient_accumulation_steps
             accelerator.backward(loss)
-            if args.backbone == "bert":
-                accelerator.clip_grad_norm_(model.parameters(), 1.0)
 
             if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
                 optimizer.step()
@@ -315,9 +317,9 @@ def train():
                         accelerator.wait_for_everyone()
                         unwrapped_model = accelerator.unwrap_model(model)
                         if args.model_type == 'concat':
-                            output_name = 'XQBert-' + time.strftime("%m%d-%H%M%S") + '.pth'
+                            output_name = 'Model-' + time.strftime("%m%d-%H%M%S") + '.pth'
                         else:
-                            output_name = 'XQSBert-' + time.strftime("%m%d-%H%M%S") + '.pth'
+                            output_name = 'Model-' + time.strftime("%m%d-%H%M%S") + '.pth'
                         output_path = os.path.join(args.output_dir, output_name)
                         torch.save({
                             'model_state_dict': unwrapped_model.state_dict(),
@@ -333,9 +335,9 @@ def train():
                 accelerator.wait_for_everyone()
                 unwrapped_model = accelerator.unwrap_model(model)
                 if args.model_type == 'concat':
-                    output_name = 'XQBert-' + time.strftime("%m%d-%H%M%S") + '.pth'
+                    output_name = 'Model-' + time.strftime("%m%d-%H%M%S") + '.pth'
                 else:
-                    output_name = 'XQSBert-' + time.strftime("%m%d-%H%M%S") + '.pth'
+                    output_name = 'Model-' + time.strftime("%m%d-%H%M%S") + '.pth'
                 output_path = os.path.join(args.output_dir, output_name)
                 torch.save({
                     'model_state_dict': unwrapped_model.state_dict(),
